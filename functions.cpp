@@ -196,6 +196,7 @@ void call(char* command_keyword, char arguments[10][4096]) {
             } else {
                 COMMAND_df();
             }
+            break;
         }
         case 12: {
             if (arguments[2][0] != '\0') {
