@@ -143,8 +143,36 @@ int disk_image::get_item_id_by_name_under(const char* name, int id_parent) {
     return -1;
 }
 
-char* disk_image::get_name_by_dir_id(int id) {
-    return (char*)(data_block[id].data + 3);
+const char* disk_image::get_name_by_dir_id(int id) {
+    return (const char*)(data_block[id].data + 3);
+}
+
+const char* disk_image::get_name_by_file_id(int id) {
+    const static char def[] = "";
+    for (int i = 0; i < 4096; i ++) {
+        if (inode_block[i].is_dir) {
+            for (int j = 0; j < 4096; j += 256) {
+                if (data_block[i].data[j] and id == (data_block[i].data[j + 1] << 8) + data_block[i].data[j + 2]) {
+                    return (const char*) (data_block[i].data + j + 3);
+                }
+            }
+        }
+    }
+    cout << "No Wayyyyyy!" << endl;
+    return def;
+}
+
+int disk_image::get_parent_id_by_item_id(int id) {
+    for (int i = 0; i < 4096; i ++) {
+        if (inode_block[i].is_dir) {
+            for (int j = 0; j < 4096; j += 256) {
+                if (data_block[i].data[j] and id == (data_block[i].data[j + 1] << 8) + data_block[i].data[j + 2]) {
+                    return i;
+                }
+            }
+        }
+    }
+    return -1;
 }
 
 /*
@@ -292,21 +320,42 @@ int disk_image::get_file_id_by_path(const char* path) {
 
 /*
  RECURSIVELY, REMOVE BLOCK *id*
+ This doesn't clear the file link stored in its parent directory
  */
-void disk_image::remove(int id) {
+void disk_image::recursive_remove(int id) {
     if (inode_block[id].is_dir) {
         //  If target is a directory, also call remove on the files/directories in it
         //  The first two children of a directory is itself and its parent, so we start from 512 (3rd)
         for (int i = 512; i < 4096; i += 256) {
             if (data_block[id].data[i] == 1) {
-                remove((data_block[id].data[i + 1] << 8) + data_block[id].data[i + 2]);
+                recursive_remove((data_block[id].data[i + 1] << 8) + data_block[id].data[i + 2]);
             }
         }
+    }
+    if (inode_block[id].continues) {
+        recursive_remove(inode_block[id].next_node);
     }
     inode_block[id].initialize();
     data_block[id].initialize();
     clear_inode(id);
     clear_block(id);
+}
+
+/*
+ SIMPLY REMOVE BLOCK *id*
+ */
+void disk_image::remove(int id) {
+    if (id >= 0) {
+        //  Firstly, clear the file link stored in its parent directory
+        int id_parent = get_parent_id_by_item_id(id);
+        for (int i = 0; i < 4096; i += 256) {
+            if (data_block[id_parent].data[i] and id == (data_block[id_parent].data[i + 1] << 8) + data_block[id_parent].data[i + 2]) {
+                memset(data_block[id_parent].data + i, 0, 256);
+            }
+        }
+        
+        recursive_remove(id);
+    }
 }
 
 /*

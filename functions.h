@@ -20,6 +20,7 @@ int find_command(char* command);
 unsigned int simplified_hash(char* start, int length);
 unsigned int hash_multiply(unsigned int a, unsigned int b);
 void correct_path(char* str);
+bool ask();
 
 
 

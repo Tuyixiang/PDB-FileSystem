@@ -172,15 +172,61 @@ void call(char* command_keyword, char arguments[10][4096]) {
             break;
         }
         case 9: {
-            COMMAND_save();
+            
+            if (arguments[0][0] != '\0') {
+                cout << "Failed to execute command \"save\"!\nArgument not recognized: this function does not require arguments." << endl;
+            } else {
+                COMMAND_save();
+            }
             break;
         }
         case 10: {
-            COMMAND_exit();
+            
+            if (arguments[0][0] != '\0') {
+                cout << "Failed to execute command \"exit\"!\nArgument not recognized: this function does not require arguments." << endl;
+            } else {
+                COMMAND_exit();
+            }
             break;
         }
         case 11: {
-            COMMAND_df();
+            
+            if (arguments[0][0] != '\0') {
+                cout << "Failed to execute command \"df\"!\nArgument not recognized: this function does not require arguments." << endl;
+            } else {
+                COMMAND_df();
+            }
+        }
+        case 12: {
+            if (arguments[2][0] != '\0') {
+                cout << "Failed to execute command \"imp\"!\nToo many arguments (needed 2)." << endl;
+                cout << "Usage:\timp $ext_path [$path]" << endl;
+                cout << "Example:\timp log.txt (to current directory)" << endl;
+                cout << "Example:\timp log.txt /dir/" << endl;
+            } else if (arguments[1][0] == '\0') {
+                correct_path(arguments[0]);
+                COMMAND_imp(arguments[0]);
+            } else {
+                correct_path(arguments[0]);
+                correct_path(arguments[1]);
+                COMMAND_imp(arguments[0], arguments[1]);
+            }
+            break;
+        }
+        case 13: {
+            if (arguments[1][0] != '\0') {
+                cout << "Failed to execute command \"exp\"!\nToo many arguments (needed 1)." << endl;
+                cout << "Usage:\texp $path" << endl;
+                cout << "Example:\texp log.txt" << endl;
+            } else if (arguments[0][0] == '\0') {
+                cout << "Failed to execute command \"exp\"!\nNo argument entered (needed 1)." << endl;
+                cout << "Usage:\texp $path" << endl;
+                cout << "Example:\texp log.txt" << endl;
+            } else {
+                correct_path(arguments[0]);
+                COMMAND_exp(arguments[0]);
+            }
+            break;
         }
         default: {
             break;
@@ -274,4 +320,21 @@ void correct_path(char* input) {
     }
 }
 
-
+/*
+ Check for Y/N
+ */
+bool ask() {
+    char in[3];
+    cin.getline(in, 3);
+    if (cin.fail()) {
+        cin.clear();
+        cin.ignore(INT_MAX, '\n');
+    }
+    if (in[1] != '\0' or (in[0] != 'y' and in[0] != 'n' and in[0] != 'Y' and in[0] != 'N')) {
+        cout << "Command canceled." << endl;
+        return 0;
+    } else if (in[0] == 'Y' or in[0] == 'y') {
+        return 1;
+    }
+    return 0;
+}

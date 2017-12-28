@@ -22,6 +22,9 @@ void COMMAND_rm(const char* path);
 void COMMAND_save();
 void COMMAND_exit();
 void COMMAND_df();
+void COMMAND_imp(const char* file_name, const char* path);
+void COMMAND_imp(const char* file_name);
+void COMMAND_exp(const char* path);
 
 
 #endif /* commands_h */

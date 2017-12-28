@@ -43,6 +43,10 @@ struct inode_block_type {
     //  These are created as a pool of ideas we can work further on, but not yet completed
     int file_size, inode_id;
     unsigned int hash_value;
+    
+    //  Its parent directory id
+    int father;
+    
     bool continues, continued;
     
     byte free_space;
@@ -50,11 +54,10 @@ struct inode_block_type {
     //  TRUE if the data block is a directory, FALSE if it's a file
     bool is_dir;
     
-    //  Its parent directory id
-    int father;
+    int next_node;
     
     //  more free space to add exciting features (encryption, integrity check, etc.)
-    byte more_free_space[12];
+    byte more_free_space[8];
     
     void initialize();
 };

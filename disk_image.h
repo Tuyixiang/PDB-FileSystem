@@ -36,11 +36,14 @@ struct disk_image {
     int get_dir_id_by_name_under(const char* name, int id_parent);
     int get_file_id_by_name_under(const char* name, int id_parent);
     int get_item_id_by_name_under(const char* name, int id_parent);
-    char* get_name_by_dir_id(int id);
+    const char* get_name_by_dir_id(int id);
+    const char* get_name_by_file_id(int id);
+    int get_parent_id_by_item_id(int id);
     int find_empty_block();
     int get_dir_id_by_path(const char* path);
     int get_file_id_by_path(const char* path);
     int get_dir_id_by_path(const char* start, int length);
+    void recursive_remove(int id);
     void remove(int id);
     int used_space();
 };

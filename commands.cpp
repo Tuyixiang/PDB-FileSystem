@@ -35,16 +35,8 @@ void COMMAND_save() {
  TERMINATE THIS PROGRAM
  */
 void COMMAND_exit() {
-    char in[3];
     cout << "Save before exitting? (Y/N)" << endl;
-    cin.getline(in, 3);
-    if (cin.fail()) {
-        cin.clear();
-        cin.ignore(INT_MAX, '\n');
-    }
-    if (in[1] != '\0' or (in[0] != 'y' and in[0] != 'n' and in[0] != 'Y' and in[0] != 'N')) {
-        cout << "Command canceled." << endl;
-    } else if (in[0] == 'Y' or in[0] == 'y') {
+    if (ask()) {
         disk_image_buffer.save();
     }
     cout << "Quitting";
@@ -204,8 +196,9 @@ void COMMAND_rmdir(const char* path) {
 void COMMAND_echo(const char* str, const char* path) {
     static char new_name[253];
     memset(new_name, 0, sizeof(new_name));
-    int p, id_path;
+    int p, id_path, length;
     for (p = 0; path[p] != '\0'; p ++);
+    for (length = 0; str[length]; length ++);
     if (path[-- p] == '/') {
         p --;
     }
@@ -234,17 +227,10 @@ void COMMAND_echo(const char* str, const char* path) {
             cout << "Failed to create file!\nA directory with the same name already exists." << endl;
             return;
         } else if (disk_image_buffer.get_dir_id_by_name_under(new_name, id_path) == -2) {
-            char in[3];
             cout << "A file with the same name already exists. Overwrite? (Y/N)" << endl;
-            cin.getline(in, 3);
-            if (cin.fail()) {
-                cin.clear();
-                cin.ignore(INT_MAX, '\n');
-            }
-            if (in[1] != '\0' or (in[0] != 'y' and in[0] != 'n' and in[0] != 'Y' and in[0] != 'N')) {
-                cout << "Command canceled." << endl;
-            } else if (in[0] == 'Y' or in[0] == 'y') {
+            if (ask()) {
                 int id_item = disk_image_buffer.get_item_id_by_name_under(new_name, id_path);
+                disk_image_buffer.inode_block[id_item].file_size = length;
                 memset(disk_image_buffer.data_block[id_item].data, 0, 4096);
                 for (int i = 0; str[i] != '\0'; i ++) {
                     disk_image_buffer.data_block[id_item].data[i] = str[i];
@@ -259,6 +245,7 @@ void COMMAND_echo(const char* str, const char* path) {
         }
         if (disk_image_buffer.data_block[id_path].new_child(new_node, new_name)) {
             disk_image_buffer.initialize_data_block_as_file(new_node);
+            disk_image_buffer.inode_block[new_node].file_size = length;
             for (int i = 0; str[i] != '\0'; i ++) {
                 disk_image_buffer.data_block[new_node].data[i] = str[i];
             }
@@ -273,17 +260,10 @@ void COMMAND_echo(const char* str, const char* path) {
             cout << "Failed to create file!\nA directory with the same name already exists." << endl;
             return;
         } else if (disk_image_buffer.get_dir_id_by_name_under(new_name, id_path) == -2) {
-            char in[3];
             cout << "A file with the same name already exists. Overwrite? (Y/N)" << endl;
-            cin.getline(in, 3);
-            if (cin.fail()) {
-                cin.clear();
-                cin.ignore(INT_MAX, '\n');
-            }
-            if (in[1] != '\0' or (in[0] != 'y' and in[0] != 'n' and in[0] != 'Y' and in[0] != 'N')) {
-                cout << "Command canceled." << endl;
-            } else if (in[0] == 'Y' or in[0] == 'y') {
+            if (ask()) {
                 int id_item = disk_image_buffer.get_item_id_by_name_under(new_name, id_path);
+                disk_image_buffer.inode_block[id_item].file_size = length;
                 memset(disk_image_buffer.data_block[id_item].data, 0, 4096);
                 for (int i = 0; str[i] != '\0'; i ++) {
                     disk_image_buffer.data_block[id_item].data[i] = str[i];
@@ -298,6 +278,7 @@ void COMMAND_echo(const char* str, const char* path) {
         }
         if (disk_image_buffer.data_block[id_path].new_child(new_node, new_name)) {
             disk_image_buffer.initialize_data_block_as_file(new_node);
+            disk_image_buffer.inode_block[new_node].file_size = length;
             for (int i = 0; str[i] != '\0'; i ++) {
                 disk_image_buffer.data_block[new_node].data[i] = str[i];
             }
@@ -311,7 +292,22 @@ void COMMAND_echo(const char* str, const char* path) {
 void COMMAND_cat(const char* path) {
     int id = disk_image_buffer.get_file_id_by_path(path);
     if (id >= 0) {
-        cout << disk_image_buffer.data_block[id].data << endl;
+        int total = disk_image_buffer.inode_block[id].file_size;
+        while (total > 0) {
+            if (total >= 4096) {
+                for (int i = 0; i < 4096; i ++) {
+                    cout << disk_image_buffer.data_block[id].data[i];
+                }
+                total -= 4096;
+                id = disk_image_buffer.inode_block[id].next_node;
+            } else {
+                for (int i = 0; i < total; i ++) {
+                    cout << disk_image_buffer.data_block[id].data[i];
+                }
+                break;
+            }
+        }
+        cout << endl;
     }
 }
 
@@ -332,4 +328,255 @@ void COMMAND_df() {
     int result = disk_image_buffer.used_space();
     cout << "Inode used: \t\t" << result << "/4096" << endl;
     cout << "Data block used: \t" << result << "/4096" << endl;
+}
+
+/*
+ IMPORT AN EXTERNAL FILE
+ imp example.txt /dir/
+ */
+void COMMAND_imp(const char* file_name, const char* path) {
+    //  Try to open the file named "..."
+    in_file.open(file_name, ios::in | ios::binary);
+    
+    if (in_file.is_open()) {
+        cout << "External file located." << endl;
+        //  The name of external file may be "../resources/text/sample.txt"
+        //  In this case, the name of the new file should be "sample.txt"
+        int p, length;
+        char new_name[253];
+        memset(new_name, 0, sizeof(new_name));
+        for (p = 0; file_name[p] != '\0'; p ++);
+        length = p;
+        for (; p > 0 and file_name[p] != '/'; p --);
+        if (p > 0 or file_name[0] == '/') {
+            for (int i = 0; i < length - p; i ++) {
+                new_name[i] = file_name[i + p + 1];
+            }
+        } else {
+            for (int i = 0; i < length; i ++) {
+                new_name[i] = file_name[i];
+            }
+        }
+        long long file_begin, file_end;
+        int file_size;
+        file_begin = in_file.tellg();
+        in_file.seekg(0, ios::end);
+        file_end = in_file.tellg();
+        file_size = (int) (file_end - file_begin);
+        if (disk_image_buffer.used_space() < 4096 and file_size > (4096 - disk_image_buffer.used_space()) * 4096) {
+            cout << "Failed to import file!" << endl;
+            cout << "Not enough space for external file." << endl;
+            in_file.close();
+        } else if (file_size == 0) {
+            int target = disk_image_buffer.find_empty_block();
+            int id_path = disk_image_buffer.get_dir_id_by_path(path);
+            if (int id = disk_image_buffer.get_file_id_by_name_under(new_name, id_path) >= 0) {
+                cout << "A file with the same name already exists. Overwrite? (Y/N)" << endl;
+                if (ask()) {
+                    disk_image_buffer.remove(id);
+                } else {
+                    return;
+                }
+            }
+            if (int id = disk_image_buffer.get_dir_id_by_name_under(new_name, id_path) >= 0) {
+                cout << "Failed to import file!\nA directory with the same name already exists." << endl;
+                return;
+            }
+            if (target == -1) {
+                //  This definitely shouldn't be happening because there should be enough empty space
+                cout << "Oh, nooooOOOOO!" << endl;
+                cin >> target;
+                in_file.close();
+                return;
+            }
+            if (disk_image_buffer.data_block[id_path].new_child(target, new_name)) {
+                disk_image_buffer.initialize_data_block_as_file(target);
+                cout << "Import complete." << endl;
+            }   //  Otherwise, new_child() will print "Directory full"
+        } else {
+            in_file.seekg(0, ios::beg);
+            while (file_size > 0) {
+                int target = disk_image_buffer.find_empty_block();
+                int id_path = disk_image_buffer.get_dir_id_by_path(path);
+                if (int id = disk_image_buffer.get_file_id_by_name_under(new_name, id_path) >= 0) {
+                    cout << "A file with the same name already exists. Overwrite? (Y/N)" << endl;
+                    if (ask()) {
+                        disk_image_buffer.remove(id);
+                    } else {
+                        return;
+                    }
+                }
+                if (int id = disk_image_buffer.get_dir_id_by_name_under(new_name, id_path) >= 0) {
+                    cout << "Failed to import file!\nA directory with the same name already exists." << endl;
+                    return;
+                }
+                if (target == -1) {
+                    //  This definitely shouldn't be happening because there should be enough empty space
+                    cout << "Oh, nooooOOOOO!" << endl;
+                    cin >> target;
+                    in_file.close();
+                    return;
+                }
+                if (disk_image_buffer.data_block[id_path].new_child(target, new_name)) {
+                    disk_image_buffer.initialize_data_block_as_file(target);
+                    in_file.read((char*) disk_image_buffer.data_block[target].data, min(4096, file_size));
+                    disk_image_buffer.inode_block[target].file_size = (int) file_size;
+                    file_size -= 4096;
+                    while (file_size > 0) {
+                        disk_image_buffer.inode_block[target].continues = true;
+                        target = disk_image_buffer.inode_block[target].next_node = disk_image_buffer.find_empty_block();
+                        if (target == -1) {
+                            //  This definitely shouldn't be happening because there should be enough empty space
+                            cout << "Oh, nooooOOOOO!" << endl;
+                            cin >> target;
+                            in_file.close();
+                            return;
+                        }
+                        disk_image_buffer.initialize_data_block_as_file(target);
+                        disk_image_buffer.inode_block[target].continued = true;
+                        in_file.read((char*) disk_image_buffer.data_block[target].data, min(4096, file_size));
+                        file_size -= 4096;
+                    }
+                    cout << "Import complete." << endl;
+                }   //  Otherwise, new_child() will print "Directory full"
+            }
+        }
+    } else {
+        cout << file_name << ": no such file." << endl;
+    }
+    in_file.close();
+}
+
+/*
+ IMPORT AN EXTERNAL FILE
+ This one imports the file under current directory.
+ The only difference is that this doesn't search for the directory.
+ */
+void COMMAND_imp(const char* file_name) {
+    //  Try to open the file named "..."
+    in_file.open(file_name, ios::in | ios::binary);
+    
+    if (in_file.is_open()) {
+        cout << "External file located." << endl;
+        //  The name of external file may be "../resources/text/sample.txt"
+        //  In this case, the name of the new file should be "sample.txt"
+        int p, length;
+        char new_name[253];
+        memset(new_name, 0, sizeof(new_name));
+        for (p = 0; file_name[p] != '\0'; p ++);
+        length = p;
+        for (; p > 0 and file_name[p] != '/'; p --);
+        if (p > 0 or file_name[0] == '/') {
+            for (int i = 0; i < length - p; i ++) {
+                new_name[i] = file_name[i + p + 1];
+            }
+        } else {
+            for (int i = 0; i < length; i ++) {
+                new_name[i] = file_name[i];
+            }
+        }
+        long long file_begin, file_end;
+        int file_size;
+        file_begin = in_file.tellg();
+        in_file.seekg(0, ios::end);
+        file_end = in_file.tellg();
+        file_size = (int) (file_end - file_begin);
+        if (disk_image_buffer.used_space() < 4096 and file_size > (4096 - disk_image_buffer.used_space()) * 4096) {
+            cout << "Failed to import file!" << endl;
+            cout << "Not enough space for external file." << endl;
+            in_file.close();
+        } else if (file_size == 0) {
+            int target = disk_image_buffer.find_empty_block();
+            if (target == -1) {
+                //  This definitely shouldn't be happening because there should be enough empty space
+                cout << "Oh, nooooOOOOO!" << endl;
+                cin >> target;
+                in_file.close();
+                return;
+            }
+            if (int id = disk_image_buffer.get_file_id_by_name_under(new_name, 0) >= current_path) {
+                cout << "A file with the same name already exists. Overwrite? (Y/N)" << endl;
+                if (ask()) {
+                    disk_image_buffer.remove(id);
+                } else {
+                    return;
+                }
+            }
+            if (int id = disk_image_buffer.get_dir_id_by_name_under(new_name, 0) >= current_path) {
+                cout << "Failed to import file!\nA directory with the same name already exists." << endl;
+                return;
+            }
+            disk_image_buffer.initialize_data_block_as_file(target);
+            cout << "Import complete." << endl;
+            cout << "Warning: file is empty." << endl;
+        } else {
+            in_file.seekg(0, ios::beg);
+            while (file_size > 0) {
+                int target = disk_image_buffer.find_empty_block();
+                int id_path = current_path;
+                if (target == -1) {
+                    //  This definitely shouldn't be happening because there should be enough empty space
+                    cout << "Oh, nooooOOOOO!" << endl;
+                    cin >> target;
+                    in_file.close();
+                    return;
+                }
+                if (int id = disk_image_buffer.get_file_id_by_name_under(new_name, current_path) >= 0) {
+                    cout << "A file with the same name already exists. Overwrite? (Y/N)" << endl;
+                    if (ask()) {
+                        disk_image_buffer.remove(id);
+                    } else {
+                        return;
+                    }
+                }
+                if (int id = disk_image_buffer.get_dir_id_by_name_under(new_name, current_path) >= 0) {
+                    cout << "Failed to import file!\nA directory with the same name already exists." << endl;
+                    return;
+                }
+                if (disk_image_buffer.data_block[id_path].new_child(target, new_name)) {
+                    disk_image_buffer.initialize_data_block_as_file(target);
+                    in_file.read((char*) disk_image_buffer.data_block[target].data, min(4096, file_size));
+                    disk_image_buffer.inode_block[target].file_size = (int) file_size;
+                    file_size -= 4096;
+                    while (file_size > 0) {
+                        disk_image_buffer.inode_block[target].continues = true;
+                        target = disk_image_buffer.inode_block[target].next_node = disk_image_buffer.find_empty_block();
+                        if (target == -1) {
+                            //  This definitely shouldn't be happening because there should be enough empty space
+                            cout << "Oh, nooooOOOOO!" << endl;
+                            cin >> target;
+                            in_file.close();
+                            return;
+                        }
+                        disk_image_buffer.initialize_data_block_as_file(target);
+                        disk_image_buffer.inode_block[target].continued = true;
+                        in_file.read((char*) disk_image_buffer.data_block[target].data, min(4096, file_size));
+                        file_size -= 4096;
+                    }
+                    cout << "Import complete." << endl;
+                }   //  Otherwise, new_child() will print "Directory full"
+            }
+        }
+    } else {
+        cout << file_name << ": no such file." << endl;
+    }
+    in_file.close();
+}
+
+/*
+ EXPORT A FILE
+ */
+void COMMAND_exp(const char* path) {
+    int id = disk_image_buffer.get_file_id_by_path(path);
+    if (id >= 0) {
+        const char* name = disk_image_buffer.get_name_by_file_id(id);
+        int total = disk_image_buffer.inode_block[id].file_size;
+        ofstream out;
+        out.open(name, ios::out | ios::binary | ios::trunc);
+        while (total > 0) {
+            out.write((char*) disk_image_buffer.data_block[id].data, min(total, 4096));
+            total -= 4096;
+            id = disk_image_buffer.inode_block[id].next_node;
+        }
+    }
 }

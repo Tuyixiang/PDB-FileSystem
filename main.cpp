@@ -9,6 +9,7 @@
 /*
  KNOWN BUGS:
  1. Pressing arrow keys will put invisible characters into input line.
+ 2. Importing folders will result in importing an empty file but without warning
  */
 
 #include "main.h"
@@ -48,25 +49,25 @@ int current_path = 0;
  cat
  rm
  df
+ imp $name $path (import: read a file from outside the disk and store it)
+ exp $name $path (export: export a file)
  Not implemented:
  May be implemented:
  encrypt $path $password
  decrypt $path $password
  cp $path $path
  mv $path $path
- imp $name $path (import: read a file from outside the disk and store it)
- exp $name $path (export: export a file)
  ...
  */
 const char command_pool[][20] = {
     "help", "pwd", "cd", "mkdir", "ls",
     "rmdir", "echo", "cat", "rm", "save",
-    "exit", "df", ""
+    "exit", "df", "imp", "exp", ""
 };
 const char command_arguments[][30] = {
     "", "", "$path", "$path", "[$path]",
     "$path", "$str $path", "$path", "$path", "",
-    "", "", ""
+    "", "", "$ext_path [$path]", "$path", ""
 };
 const char command_descriptions[][1000] = {
     "Print a list of supported commands.", //0
@@ -81,6 +82,8 @@ const char command_descriptions[][1000] = {
     "Save the disk image.",  //9
     "Save and exit.",    //10
     "Show disk space usage.",   //11
+    "Import an external file.", //12
+    "Export an internal file.", //13
     ""
 };
 
@@ -186,6 +189,7 @@ int main(int argc, const char * argv[]) {
             cin.ignore(INT_MAX, '\n');
             cout << "Failed to execute command!" << endl;
             cout << "Input exceeds character limit (max 4095 characters) :(" << endl;
+            cout << "If you want to create a large file, please use \"imp\" to import it from an external file." << endl;
             continue;
         }
         
